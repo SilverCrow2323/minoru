@@ -70,6 +70,8 @@ local calledBack, syncOk, syncErr = false, nil, nil
 mo:syncPersona(function(ok, err) calledBack, syncOk, syncErr = true, ok, err end)
 check(calledBack == true, "syncPersona without github config still calls back")
 check(syncOk == false, "syncPersona without github config reports failure")
+check(type(syncErr) == "string" and syncErr:match("no github config"),
+  "syncPersona without github config reports a clear error (got " .. tostring(syncErr) .. ")")
 
 if failures > 0 then
   print(failures .. " FAILURE(S)")

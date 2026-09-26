@@ -11,7 +11,7 @@ local realOpen = io.open
 local popenResponses = {}
 local popenCalls = {}
 local popenExitCode = 0
-local lastPutPayload = nil
+local lastPutPayload
 
 io.popen = function(cmd)
   popenCalls[#popenCalls+1] = cmd
