@@ -5,3 +5,4 @@ Thumbs.db
 *.swp
 *~
 .backup-v1-*
+dist/

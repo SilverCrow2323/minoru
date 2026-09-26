@@ -1,5 +1,13 @@
 # Minoru⁶
 
+> **v1.0.0 — stable.** Feature-frozen. Bugfixes only from here.
+>
+> Developed on Linux desktop, also targets handhelds running muOS
+> (tested on RG35XX H). Performance profiling on the handheld is
+> **deferred to v1.1** — the current visor renderer is not tuned for
+> low-power ARM. See "Known limitations" below.
+
+
 A floating, sarcastic robot companion — LÖVE2D rig + procedural visor
 animation + dialogue box + a persona that remembers things about whoever
 it's talking to. Built to be dropped into *any* other LÖVE program as a
@@ -15,6 +23,8 @@ function love.draw() mo:draw(240, 200, 0.6) end
 
 That's the whole integration. Everything else in this README is what `mo`
 can do once it's on screen.
+
+Full API reference: [`docs/API.md`](docs/API.md).
 
 ## Try the demo first
 
@@ -126,17 +136,45 @@ failure explicitly rather than hanging).
 ## Testing
 
 Pure-Lua, no LÖVE runtime required:
-```
-lua5.4 tests/test_json.lua
-lua5.4 tests/test_persona.lua
-lua5.4 tests/test_dialogue.lua  # UTF-8-safe typewriter effect (accents, "⁶", ...)
-lua5.4 tests/test_rig.lua      # forward-kinematics math, verified against anchors.json
-lua5.4 tests/test_tween.lua    # pose-tweening: no snapping, easing curves, no NaN
-lua5.4 tests/test_visor.lua    # every mood x many t/amplitude values, fails on any NaN/inf
-lua5.4 tests/test_init.lua     # the Minoru.new() facade + delegation
-```
-All seven run in CI on every push (`.github/workflows/ci.yml`), along with a
-`luac -p` syntax check of every `.lua` file in the repo.
+lua5.4 tests/test_json.lua # JSON round-trip + real anchors.json
+lua5.4 tests/test_persona.lua # persona save/load/remember/forget
+lua5.4 tests/test_dialogue.lua # UTF-8-safe typewriter (accents, "⁶")
+lua5.4 tests/test_dialogue_interrupt.lua # onDone is never silently dropped
+lua5.4 tests/test_rig.lua # forward-kinematics vs anchors.json
+lua5.4 tests/test_tween.lua # pose-tweening: no snap, redirect, easing
+lua5.4 tests/test_visor.lua # every mood x t x amp, fails on NaN/inf
+lua5.4 tests/test_init.lua # the Minoru.new() facade + delegation
+lua5.4 tests/test_sync.lua # Sync.pushFile with io.popen mocked
+
+text
+
+All nine run in CI on every push (`.github/workflows/ci.yml`), plus
+`luac -p` on every `.lua` file and `luacheck .` with zero warnings allowed.
+
+
+## Packaging
+bash scripts/build.sh # -> dist/minoru-<version>.love
+bash scripts/checksum.sh # -> dist/minoru-<version>.love.sha256
+bash scripts/release.sh # build + checksum + next-step reminders
+
+text
+
+The `.love` is a plain zip built with a **whitelist** (only `conf.lua`,
+`main.lua`, `minoru/`, `LICENSE`, `NOTICE.md`) — no tests, no docs, no
+secrets, no VCS cruft. The CI builds it on every push and uploads it as an
+artifact; on a `v*` tag it also attaches `.love` + `.sha256` to the GitHub
+release automatically.
+
+## Roadmap
+
+- **v1.0 (this release)** — stable library, no known P0/P1 bugs.
+- **v1.1** — performance profiling on RG35XX H: the visor renders ~150
+  polygons + 150 circles + a stencil pass per frame at `N = 48`, and the
+  motion trail draws up to 12 copies of the 1024×1024 helmet sprite. On
+  low-power ARM this may not hold 60 FPS. Planned: adaptive `N`, per-mood
+  shape cache, smaller trail budget, `quality` option in `Minoru.new`.
+- **v2.0** — audio-driven lip-sync, TTS, LLM dialogue. Same constraint as
+  GitHub sync: no native HTTPS in LÖVE, so this needs an external bridge.
 
 ## Known limitations
 

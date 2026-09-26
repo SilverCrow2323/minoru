@@ -1,4 +1,6 @@
-## v1.0.0-dev — P0 stabilization + Fase 1 test hardening + Fase 4 sync security (in progress)
+## v1.0.0 — 2026-09-26
+
+First stable release. Stabilization (Fase 0), test hardening (Fase 1) and sync security (Fase 4) are complete. Performance profiling on handheld hardware (Fase 3) is explicitly deferred to v1.1 — see README's "Status" section for what that means.
 
 ### Fase 4 — sync security
 - Token no longer appears on the curl command line (was visible in

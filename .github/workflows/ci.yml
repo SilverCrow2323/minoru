@@ -4,27 +4,28 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
   lua-checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Lua 5.4
-        run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Install Lua 5.4, luarocks, zip
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.4 luarocks zip
+          sudo luarocks install luacheck
 
       - name: Syntax-check every .lua file
         run: |
           set -e
-          find . -name '*.lua' -not -path './.git/*' | while read -r f; do
+          find . -name '*.lua' -not -path './.git/*' -not -path './dist/*' | while read -r f; do
             echo "checking $f"
             luac5.4 -p "$f"
           done
-
-      - name: Install luacheck
-        run: |
-          sudo apt-get install -y luarocks
-          sudo luarocks install luacheck
 
       - name: Lint (luacheck)
         run: luacheck . --no-color --codes
@@ -36,3 +37,25 @@ jobs:
             echo "=== $f ==="
             lua5.4 "$f"
           done
+
+      - name: Build .love
+        run: |
+          bash scripts/build.sh
+          bash scripts/checksum.sh
+
+      - name: Upload .love artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: minoru-love
+          path: |
+            dist/*.love
+            dist/*.sha256
+
+      - name: Release on tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.love
+            dist/*.sha256
+          generate_release_notes: true
