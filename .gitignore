@@ -1,0 +1,7 @@
+secrets.lua
+*.love
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.backup-v1-*

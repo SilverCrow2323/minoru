@@ -1,0 +1,181 @@
+{
+  "helmet": {
+    "canvas_size": [
+      1024,
+      1024
+    ],
+    "sphere_center": [
+      512.0,
+      512.0
+    ],
+    "sphere_radius": 307.2,
+    "visor_center": [
+      419.84000000000003,
+      502.784
+    ],
+    "visor_radius": 178.176,
+    "panel_center": [
+      702.4639999999999,
+      505.856
+    ],
+    "panel_radius": 61.44,
+    "shoulder_l": [
+      281.6,
+      680.96
+    ],
+    "shoulder_r": [
+      742.4,
+      680.96
+    ],
+    "head_top": [
+      512.0,
+      180.224
+    ],
+    "note": "shoulder_l/r are the arm attach points on the helmet silhouette (lower part, as requested), in this PNG's own pixel space (origin top-left). Minoru has no legs."
+  },
+  "prof_hat": {
+    "canvas_size": [
+      260,
+      170
+    ],
+    "pivot_attach": [
+      130.0,
+      144.5
+    ]
+  },
+  "pointer_stick": {
+    "canvas_size": [
+      220,
+      40
+    ],
+    "pivot_grip": [
+      18,
+      20.0
+    ],
+    "grip_offset_from_wrist": [
+      0.0,
+      38.0
+    ]
+  },
+  "upper_arm": {
+    "canvas_size": [
+      104,
+      210
+    ],
+    "pivot_top": [
+      52.0,
+      46
+    ],
+    "pivot_bottom": [
+      52.0,
+      164
+    ]
+  },
+  "forearm": {
+    "canvas_size": [
+      100,
+      200
+    ],
+    "pivot_top": [
+      50.0,
+      46
+    ],
+    "pivot_bottom": [
+      50.0,
+      154
+    ]
+  },
+  "palm": {
+    "canvas_size": [
+      150,
+      120
+    ],
+    "pivot_wrist": [
+      75.0,
+      22
+    ],
+    "finger_bases": [
+      {
+        "pos": [
+          34,
+          90
+        ],
+        "angle_deg": -35
+      },
+      {
+        "pos": [
+          52,
+          90
+        ],
+        "angle_deg": -17
+      },
+      {
+        "pos": [
+          70,
+          90
+        ],
+        "angle_deg": 0
+      },
+      {
+        "pos": [
+          88,
+          90
+        ],
+        "angle_deg": 17
+      },
+      {
+        "pos": [
+          106,
+          90
+        ],
+        "angle_deg": 35
+      }
+    ]
+  },
+  "finger_proximal": {
+    "canvas_size": [
+      36,
+      42
+    ],
+    "pivot_top": [
+      18.0,
+      10
+    ],
+    "pivot_bottom": [
+      18.0,
+      32
+    ]
+  },
+  "finger_middle": {
+    "canvas_size": [
+      30,
+      33
+    ],
+    "pivot_top": [
+      15.0,
+      9
+    ],
+    "pivot_bottom": [
+      15.0,
+      24
+    ]
+  },
+  "finger_distal": {
+    "canvas_size": [
+      26,
+      28
+    ],
+    "pivot_top": [
+      13.0,
+      8
+    ],
+    "pivot_bottom": [
+      13.0,
+      20
+    ]
+  },
+  "icon_anchor": [
+    700.0,
+    340.0
+  ]
+}
