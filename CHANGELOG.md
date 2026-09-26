@@ -1,4 +1,17 @@
-## v1.0.0-dev — P0 stabilization + Fase 1 test hardening (in progress)
+## v1.0.0-dev — P0 stabilization + Fase 1 test hardening + Fase 4 sync security (in progress)
+
+### Fase 4 — sync security
+- Token no longer appears on the curl command line (was visible in
+  `ps` / /proc/<pid>/cmdline): written to a 0600 temp curl config file
+  and passed via `-K file`, removed even on error
+- Added `--max-time 30 --retry 2` to all curl calls (no more hangs on
+  a dead network)
+- `runCapture` now returns the exit code; a curl network failure is
+  reported explicitly ("curl exit 28: ...") instead of being silently
+  misread as "no sha" or "unknown curl/API error"
+- `tests/test_sync.lua` rewritten: 8 cases including a security
+  regression test that fails if the token ever reappears on the
+  command line, and a network-error test with a mocked exit 28
 
 ### Fase 1 — test hardening
 - Added tests/test_dialogue_interrupt.lua (regression onDone overwrite)
