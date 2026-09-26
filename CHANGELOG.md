@@ -1,3 +1,30 @@
+## v1.1.0-dev — Fase 3: performance groundwork (2026-09-26)
+Performance profiling on real hardware is still pending — these are the
+tools and safe optimizations, not the measurements. The hypotheses below
+are honest guesses; do not trust them until you run the F1 profiler on
+the target.
+
+- Added `minoru/quality.lua` with `low`/`medium`/`high` presets: visor
+  segment count (20/32/48), glow passes (1/2/3), trail budget (0/6/12).
+  `Minoru.new({quality = "low"})` opts in; default stays `high`.
+- Added pre-rendered 128x128 helmet silhouette for trail ghosts on
+  low/medium — cuts trail fill rate by ~64x vs the full 1024x1024 sprite.
+  This is the single most likely bottleneck on Mali-G31-class hardware.
+- Added visor shape cache for time-independent moods (sad, surprised,
+  sleepy, speechless, determined, standard-at-rest): 48 floats per frame
+  no longer recomputed for static lines.
+- Added adaptive auto-degrade (`adaptiveQuality = true`): drops one tier
+  if the rolling 3s FPS average stays under 48. Hysteresis: never climbs
+  back up.
+- Added F1 profiler overlay in the demo (FPS, update ms, draw ms, current
+  quality) and F2 to cycle quality tiers manually.
+- Bumped `Minoru.VERSION` to `1.1.0-dev`.
+
+**Not measured yet.** The numbers in quality.lua are derived from first
+principles (fill rate, segment count), not from `love.timer` on a
+RG35XX H. Until that happens, treat v1.1.0-dev as a hypothesis under
+test, not a validated release.
+
 ## v1.0.0 — 2026-09-26
 
 First stable release. Stabilization (Fase 0), test hardening (Fase 1) and sync security (Fase 4) are complete. Performance profiling on handheld hardware (Fase 3) is explicitly deferred to v1.1 — see README's "Status" section for what that means.

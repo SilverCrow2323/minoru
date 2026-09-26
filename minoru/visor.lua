@@ -9,13 +9,18 @@
 -- helmet.png still ships with an EMPTY visor (as designed) — this module
 -- draws entirely inside that empty glass circle, clipped with a stencil so
 -- nothing can bleed outside it even during a glitch/tremble spike.
+--
+-- v1.1.0-dev: N (segment count) and glowPasses are now per-call, driven by
+-- the quality tier (see minoru/quality.lua). A small cache holds the shape
+-- for the moods whose geometry is time-independent (sad, surprised, sleepy,
+-- speechless, determined, and standard at rest) so we don't recompute the
+-- same 48 floats every frame for a static line.
 
 local Visor = {}
 
 -- Private RNG for glitch effects — deliberately NOT math.random/randomseed,
 -- so Minoru never perturbs the host program's own global random state
 -- (important for a library meant to be embedded in someone else's game).
--- Falls back to plain math.random only outside a real LÖVE runtime (tests).
 local privateRng = (love.math and love.math.newRandomGenerator) and love.math.newRandomGenerator(0) or nil
 local function rnd(a, b)
   if privateRng then
@@ -31,9 +36,18 @@ local function reseed(s)
   if privateRng then privateRng:setSeed(s) end
 end
 
-local N = 48
-local XS = {}
-for i = 1, N do XS[i] = -0.82 + (i - 1) / (N - 1) * 1.64 end
+local DEFAULT_N = 48
+
+-- XS cache: the -0.82..0.82 sample positions for a given N. Built once per N.
+local XS_CACHE = {}
+local function getXS(n)
+  local xs = XS_CACHE[n]
+  if xs then return xs end
+  xs = {}
+  for i = 1, n do xs[i] = -0.82 + (i - 1) / (n - 1) * 1.64 end
+  XS_CACHE[n] = xs
+  return xs
+end
 
 local COLOR = {
   standard    = { 0x4C/255, 0xD9/255, 0x7A/255 },
@@ -60,22 +74,19 @@ local function falloff(x, cutoff)
   else return (cutoff - ax) / (cutoff * 0.3) end
 end
 
--- returns ys[], widths[] (both length N, aligned with XS) for every mood
--- that is a plain "line" shape. "processing" is handled separately (dots).
-local function computeShape(mood, t, opts)
+-- raw shape computer, always runs the full loop
+local function computeShapeRaw(mood, t, opts, n, xs)
   opts = opts or {}
   local ys, widths = {}, {}
-  local amp = opts.amp or 0 -- talk amplitude, 0..1
+  local amp = opts.amp or 0
 
-  for i = 1, N do
-    local x = XS[i]
+  for i = 1, n do
+    local x = xs[i]
     local y, w
 
     if mood == "standard" then
       local env = 1 - math.abs(x / 0.82) ^ 2.2
       if amp <= 0.02 then
-        -- perfectly flat & centered at rest — only the whole line's
-        -- brightness breathes (see alphaPulse below), never its position
         y = 0
       else
         y = amp * 0.34 * math.sin(x * 10 + t * 14) * env
@@ -120,7 +131,7 @@ local function computeShape(mood, t, opts)
       y = 0.22 * math.sin(x * 9 + t * 4) + 0.06 * math.sin(x * 23 + t * 9 + 1.0)
       w = 0.07
     else
-      y, w = 0, 0.08 -- unknown mood: flat fallback rather than erroring mid-frame
+      y, w = 0, 0.08
     end
 
     ys[i] = y
@@ -129,12 +140,37 @@ local function computeShape(mood, t, opts)
   return ys, widths
 end
 
--- draws one tapered, rounded-joint stroke through (xs,ys) scaled by r around (cx,cy)
-local function strokePath(cx, cy, r, ys, widths, color, alpha)
+-- which moods have t-independent geometry (skip recompute)
+local T_INDEPENDENT = {
+  sad = true, surprised = true, sleepy = true,
+  speechless = true, determined = true,
+}
+
+-- cache: [mood][n] = { ys, widths }. Only used for T_INDEPENDENT moods.
+local SHAPE_CACHE = {}
+
+local function getShape(mood, t, opts, n, xs)
+  local amp = opts and opts.amp or 0
+  local cacheable = T_INDEPENDENT[mood] or (mood == "standard" and amp <= 0.02)
+  if cacheable then
+    local byN = SHAPE_CACHE[mood]
+    if not byN then byN = {}; SHAPE_CACHE[mood] = byN end
+    local c = byN[n]
+    if not c then
+      local ys, widths = computeShapeRaw(mood, 0, opts, n, xs)
+      c = { ys = ys, widths = widths }
+      byN[n] = c
+    end
+    return c.ys, c.widths
+  end
+  return computeShapeRaw(mood, t, opts, n, xs)
+end
+
+local function strokePath(cx, cy, r, ys, widths, color, alpha, xs, n)
   love.graphics.setColor(color[1], color[2], color[3], alpha)
   local px, py, pw
-  for i = 1, N do
-    local x = cx + XS[i] * r
+  for i = 1, n do
+    local x = cx + xs[i] * r
     local y = cy + ys[i] * r
     local w = widths[i] * r
     if i > 1 then
@@ -155,28 +191,37 @@ local function strokePath(cx, cy, r, ys, widths, color, alpha)
   love.graphics.circle("fill", px, py, pw / 2)
 end
 
-local function drawLineMood(mood, cx, cy, r, t, opts, alphaMul)
+local function drawLineMood(mood, cx, cy, r, t, opts, alphaMul, n, xs, glowPasses)
   alphaMul = alphaMul or 1
+  glowPasses = glowPasses or 3
   if mood == "standard" and (opts.amp or 0) <= 0.02 then
-    -- idle "breathing": brightness only, never position, so the line
-    -- never looks off-center — just a slow gentle pulse in how lit it is
+    -- idle "breathing": brightness only, never position
     alphaMul = alphaMul * (0.85 + 0.15 * math.sin(t * 1.3))
   end
   local color = COLOR[mood] or { 1, 1, 1 }
-  local ys, widths = computeShape(mood, t, opts)
+  local ys, widths = getShape(mood, t, opts, n, xs)
 
-  -- glow: a couple of wider, fainter passes behind the crisp core
-  local glowWidths = {}
-  for i = 1, N do glowWidths[i] = widths[i] * 2.6 end
-  strokePath(cx, cy, r, ys, glowWidths, color, 0.16 * alphaMul)
-  for i = 1, N do glowWidths[i] = widths[i] * 1.7 end
-  strokePath(cx, cy, r, ys, glowWidths, color, 0.20 * alphaMul)
+  -- glow: a couple of wider, fainter passes behind the crisp core,
+  -- count controlled by the quality tier
+  if glowPasses >= 2 then
+    local gw = {}
+    for i = 1, n do gw[i] = widths[i] * 2.6 end
+    strokePath(cx, cy, r, ys, gw, color, 0.16 * alphaMul, xs, n)
+  end
+  if glowPasses >= 3 then
+    local gw = {}
+    for i = 1, n do gw[i] = widths[i] * 1.7 end
+    strokePath(cx, cy, r, ys, gw, color, 0.20 * alphaMul, xs, n)
+  end
 
-  local bright = { math.min(1, color[1] * 1.25 + 0.12), math.min(1, color[2] * 1.25 + 0.12), math.min(1, color[3] * 1.25 + 0.12) }
-  strokePath(cx, cy, r, ys, widths, bright, alphaMul)
+  local bright = {
+    math.min(1, color[1] * 1.25 + 0.12),
+    math.min(1, color[2] * 1.25 + 0.12),
+    math.min(1, color[3] * 1.25 + 0.12),
+  }
+  strokePath(cx, cy, r, ys, widths, bright, alphaMul, xs, n)
 
   if mood == "sarcastic" and opts.glitchSeed then
-    -- a few live, randomly-flickering red pixels around the smirk
     reseed(opts.glitchSeed)
     for _ = 1, 6 do
       if rnd() < 0.5 then
@@ -191,9 +236,9 @@ local function drawLineMood(mood, cx, cy, r, t, opts, alphaMul)
   if mood == "glitch" then
     local ghostCol = { color[1], color[2], color[3] }
     local ysUp, ysDn = {}, {}
-    for i = 1, N do ysUp[i] = ys[i] - 0.09; ysDn[i] = ys[i] + 0.09 end
-    strokePath(cx, cy, r, ysUp, widths, ghostCol, 0.28 * alphaMul)
-    strokePath(cx, cy, r, ysDn, widths, ghostCol, 0.28 * alphaMul)
+    for i = 1, n do ysUp[i] = ys[i] - 0.09; ysDn[i] = ys[i] + 0.09 end
+    strokePath(cx, cy, r, ysUp, widths, ghostCol, 0.28 * alphaMul, xs, n)
+    strokePath(cx, cy, r, ysDn, widths, ghostCol, 0.28 * alphaMul, xs, n)
     for _ = 1, 4 do
       local yy = cy + (rnd() * 1.4 - 0.7) * r
       local xx0 = cx + (rnd() * 1.0 - 0.8) * r
@@ -219,29 +264,32 @@ local function drawProcessingDots(cx, cy, r, t, alphaMul)
   end
 end
 
--- state: { mood=, prevMood=, blend=0..1, t=, opts=, processing=bool, prevProcessing=bool }
+-- state: { mood=, prevMood=, blend=0..1, t=, opts=, processing=bool,
+--          prevProcessing=bool, currentAlpha=, N=, glowPasses= }
 function Visor.draw(cx, cy, r, state)
   love.graphics.stencil(function()
     love.graphics.circle("fill", cx, cy, r)
   end, "replace", 1)
   love.graphics.setStencilTest("greater", 0)
 
+  local n = state.N or DEFAULT_N
+  local xs = getXS(n)
+  local glow = state.glowPasses or 3
+
   local blend = state.blend or 1
-  -- il rig calcola currentAlpha per il flicker "speechless"; prima lo
-  -- passava ma la visiera lo ignorava, quindi il flicker non si vedeva mai.
   local ca = state.currentAlpha or 1
   if state.prevMood and blend < 1 then
     if state.prevProcessing then
       drawProcessingDots(cx, cy, r, state.t, (1 - blend) * ca)
     else
-      drawLineMood(state.prevMood, cx, cy, r, state.t, state.prevOpts or {}, (1 - blend) * ca)
+      drawLineMood(state.prevMood, cx, cy, r, state.t, state.prevOpts or {}, (1 - blend) * ca, n, xs, glow)
     end
   end
 
   if state.processing then
     drawProcessingDots(cx, cy, r, state.t, blend * ca)
   else
-    drawLineMood(state.mood, cx, cy, r, state.t, state.opts or {}, blend * ca)
+    drawLineMood(state.mood, cx, cy, r, state.t, state.opts or {}, blend * ca, n, xs, glow)
   end
 
   love.graphics.setStencilTest()

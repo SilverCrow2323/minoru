@@ -31,13 +31,13 @@ local json = require("minoru.json")
 
 local Minoru = {}
 
-Minoru.VERSION = "1.0.0"
+Minoru.VERSION = "1.1.0-dev"
 
 function Minoru.new(opts)
   opts = opts or {}
   local self = { name = opts.name or "Minoru\xE2\x81\xB6" }
 
-  self.rig = Rig.new(opts.assetsPath)
+  self.rig = Rig.new(opts.assetsPath, { quality = opts.quality, adaptiveQuality = opts.adaptiveQuality })
   self.dialogue = Dialogue.new(opts.dialogue)
   self.persona = Persona.load(opts.saveFile or "minoru_persona.json")
   self.githubCfg = opts.github

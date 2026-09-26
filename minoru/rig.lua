@@ -16,6 +16,7 @@
 
 local json = require("minoru.json")
 local Visor = require("minoru.visor")
+local Quality = require("minoru.quality")
 
 local Rig = {}
 Rig.__index = Rig
@@ -58,9 +59,8 @@ end
 local IDLE_FREQ = 1.1
 local IDLE_AMP = 9
 local TRAIL_MIN_DIST = 3
-local TRAIL_LIFETIME = 0.16
 local TRAIL_MAX_ALPHA = 0.55
-local TRAIL_MAX_ENTRIES = 12
+-- TRAIL_LIFETIME and TRAIL_MAX_ENTRIES are now per-instance, from quality
 local MOOD_TRANSITION_TIME = 0.15 -- cross-dissolve duration when the mood changes
 
 -- named poses (radians). 0 = arm hanging straight down.
@@ -101,15 +101,49 @@ local EASE = {
   end,
 }
 
-function Rig.new(basePath)
+-- opts (optional): { quality = "low"|"medium"|"high", adaptiveQuality = bool }
+-- Backward-compatible: a string second arg is treated as opts.quality.
+function Rig.new(basePath, opts)
   basePath = basePath or "minoru/assets/"
+  if type(opts) == "string" then opts = { quality = opts } end
+  opts = opts or {}
   local self = setmetatable({}, Rig)
+  self.qualityName = opts.quality or "high"
+  self.quality = Quality.get(self.qualityName)
+  self.adaptiveQuality = opts.adaptiveQuality and true or false
+  self._fpsWindow = {}
 
   local raw = love.filesystem.read(basePath .. "anchors.json")
   assert(raw, "rig: could not read anchors.json at " .. basePath)
   self.anchors = json.decode(raw)
 
   self.helmet = love.graphics.newImage(basePath .. "helmet.png")
+
+  -- Pre-rendered, downscaled silhouette used for motion-trail ghosts on
+  -- low/medium quality. On a handheld the full 1024x1024 helmet drawn 12x
+  -- per frame eats an enormous amount of fill rate for what is, visually,
+  -- a fading smear. 128x128 is plenty. Skipped if love.graphics.newCanvas
+  -- is missing (test harness).
+  self.trailSilhouette = nil
+  self.trailSilhouetteScale = 1
+  if self.quality.trailSilhouette
+     and love.graphics.newCanvas and love.graphics.setCanvas then
+    local hw = (self.helmet.getWidth and self.helmet:getWidth()) or 1024
+    local hh = (self.helmet.getHeight and self.helmet:getHeight()) or 1024
+    local size = 128
+    local ok, canvas = pcall(love.graphics.newCanvas, size, size)
+    if ok and canvas then
+      local prev = love.graphics.getCanvas and love.graphics.getCanvas()
+      love.graphics.setCanvas(canvas)
+      if love.graphics.clear then love.graphics.clear(0, 0, 0, 0) end
+      love.graphics.setColor(1, 1, 1, 1)
+      love.graphics.draw(self.helmet, 0, 0, 0, size / hw, size / hh)
+      love.graphics.setCanvas(prev)
+      love.graphics.setColor(1, 1, 1, 1)
+      self.trailSilhouette = canvas
+      self.trailSilhouetteScale = hw / size
+    end
+  end
 
   self.icons = {}
   for name, relPath in pairs(ICON_FILES) do
@@ -381,7 +415,47 @@ end
 
 -- ---------------- per-frame update ----------------
 
+-- Manual quality switch. Returns the new tier name.
+function Rig:setQuality(name)
+  local q = Quality.get(name)
+  self.quality = q
+  self.qualityName = name
+  return name
+end
+
+-- Adaptive auto-degrade: track a rolling window of FPS. If the average
+-- stays below 48 for ~3 seconds, drop one tier. Never climbs back up
+-- (hysteresis: better to sit at "low" than oscillate). Requires
+-- love.timer; no-op in the test harness.
+local ADAPT_FPS_THRESHOLD = 48
+local ADAPT_WINDOW_SECONDS = 3
+
+function Rig:_tickAdaptiveQuality(dt)
+  if not self.adaptiveQuality then return end
+  if not (love.timer and love.timer.getFPS) then return end
+  self._fpsWindow[#self._fpsWindow + 1] = { t = dt, fps = love.timer.getFPS() }
+  local total = 0
+  for _, e in ipairs(self._fpsWindow) do total = total + e.t end
+  -- drop old samples beyond the window
+  while total > ADAPT_WINDOW_SECONDS and #self._fpsWindow > 1 do
+    total = total - self._fpsWindow[1].t
+    table.remove(self._fpsWindow, 1)
+  end
+  if total < ADAPT_WINDOW_SECONDS * 0.9 then return end
+  local sum, n = 0, 0
+  for _, e in ipairs(self._fpsWindow) do sum = sum + e.fps; n = n + 1 end
+  local avg = sum / n
+  if avg < ADAPT_FPS_THRESHOLD then
+    local lower = Quality.degrade(self.qualityName)
+    if lower then
+      self:setQuality(lower)
+      self._fpsWindow = {}
+    end
+  end
+end
+
 function Rig:update(dt)
+  self:_tickAdaptiveQuality(dt)
   self.idleT = self.idleT + dt
   self.visorT = self.visorT + dt
 
@@ -488,7 +562,12 @@ function Rig:_drawAt(x, y, scale, full, noBob)
   end
 
   if full then love.graphics.setColor(1, 1, 1, 1) end
-  love.graphics.draw(self.helmet, 0, 0)
+  if (not full) and self.trailSilhouette then
+    local s = self.trailSilhouetteScale
+    love.graphics.draw(self.trailSilhouette, 0, 0, 0, s, s)
+  else
+    love.graphics.draw(self.helmet, 0, 0)
+  end
 
   if full then
     local h = self.anchors.helmet
@@ -501,6 +580,8 @@ function Rig:_drawAt(x, y, scale, full, noBob)
       prevMood = self.prevMood, prevProcessing = self.prevProcessing,
       blend = self.blend, t = self.visorT, currentAlpha = currentAlpha,
       opts = { amp = (self.talking and self.talkAmp) or 0, glitchSeed = math.floor(self.idleT * 12) },
+      N = self.quality.visorN,
+      glowPasses = self.quality.visorGlow,
     })
     love.graphics.setColor(1, 1, 1, 1)
 
@@ -544,13 +625,15 @@ function Rig:draw(x, y, scale)
 
   if self.lastX then
     local dx, dy = x - self.lastX, y - self.lastY
-    if (dx * dx + dy * dy) > (TRAIL_MIN_DIST * TRAIL_MIN_DIST) then
+    if self.quality.trailMax > 0
+       and (dx * dx + dy * dy) > (TRAIL_MIN_DIST * TRAIL_MIN_DIST) then
+      local life = self.quality.trailLife
       table.insert(self.trail, {
         x = self.lastX, y = self.lastY, scale = self.lastScale or scale,
         color = moodTrailColor(self.mood, self.processing),
-        life = TRAIL_LIFETIME, maxLife = TRAIL_LIFETIME,
+        life = life, maxLife = life,
       })
-      if #self.trail > TRAIL_MAX_ENTRIES then table.remove(self.trail, 1) end
+      while #self.trail > self.quality.trailMax do table.remove(self.trail, 1) end
     end
   end
   self.lastX, self.lastY, self.lastScale = x, y, scale
