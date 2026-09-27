@@ -79,6 +79,13 @@ local POSE = {
   pointForward = { shoulderL = 0.15,  elbowL = 0.15,  shoulderR = -1.1,  elbowR = -0.15 },
   armsWide     = { shoulderL = -1.5,  elbowL = -0.15, shoulderR = 1.5,   elbowR = 0.15 },
   handsOnHips  = { shoulderL = -0.55, elbowL = 1.9,   shoulderR = 0.55,  elbowR = -1.9 },
+  -- Canon (dossier, "Altruismo Selettivo"): quando la situazione e' seria
+  -- Minoru smette di punzecchiare e si comporta con rispetto ed empatia.
+  -- Posa aperta, non teatrale, una mano leggermente offerta.
+  comrade      = { shoulderL = -0.20, elbowL = 0.35,  shoulderR = -0.35, elbowR = 0.55 },
+  -- "Mi rimetto sull'attenti, ma non sono incazzato": spalle basse,
+  -- gomiti controllati, niente tremolio. La linea del visore fa il resto.
+  stern        = { shoulderL = -0.15, elbowL = 0.25,  shoulderR = 0.15,  elbowR = -0.25 },
 }
 
 -- Easing curves for pose transitions (t: 0..1 -> 0..1). Picked per-reaction
@@ -179,6 +186,12 @@ function Rig.new(basePath, opts)
   self.speechlessFlicker = false
   self.idleT = 0
   self.trembleAmp = 0
+
+  -- Idle blink (canon: la visiera e' un "oscilloscopio emotivo"; un
+  -- robot che non lampeggia mai sembra morto). Timer casuale 3-6s,
+  -- durata blink 0.14s. Solo quando e' fermo, standard, non parla.
+  self.blinkTimer = 3 + rnd() * 3
+  self.blinkPhase = 0
 
   self.trail = {}
   self.lastX, self.lastY, self.lastScale = nil, nil, nil
@@ -400,6 +413,59 @@ end
 
 function Rig:reactGlitch() self:setMood("glitch"); self:setTremble(0.02) end
 
+-- Canon: "Estremamente rara (Minoru non ammette di preoccuparsi)".
+-- Reazione sottile, quasi invisibile: nessuna icona, tremolio quasi nullo,
+-- linea blu bassa. Se la vedi, e' successo qualcosa di serio.
+function Rig:reactApprehensive()
+  self:setMood("apprehensive")
+  self:setNamedPose("slumped", { duration = 0.7, ease = "easeInOutSine" })
+  self:setTremble(0.008)
+  self:hideIcon()
+end
+
+-- Canon: "il colore del paradosso o del Rintrompo puro. Quando appare,
+-- significa che la realtà sta per rompersi... o Minoru ha visto qualcosa
+-- che non doveva". Glitch aggressivo, ma con un innesco diverso da reactGlitch.
+function Rig:reactParadox()
+  self:setMood("paradox")
+  self:setNamedPose("tenseFists", { duration = 0.12, ease = "easeOutCubic" })
+  self:setGrip("L", 0.7, { duration = 0.12 }); self:setGrip("R", 0.7, { duration = 0.12 })
+  self:setTremble(0.03)
+  self:showIcon("question_mark", 1.8)
+end
+
+-- Canon ("Altruismo Selettivo"): la reazione onesta, senza sarcasmo. Non
+-- c'e' una posa teatrale, non c'e' un'icona, non c'e' tremolio. Il mood
+-- resta "standard" — la sincerita' di Minoru non e' uno stato emotivo
+-- speciale, e' la sua versione normale quando smette la maschera.
+function Rig:reactComrade()
+  self:setMood("standard")
+  self:setNamedPose("comrade", { duration = 0.6, ease = "easeInOutSine" })
+  self:setTremble(0)
+  self:setGrip("L", 0.15, { duration = 0.6 }); self:setGrip("R", 0.15, { duration = 0.6 })
+  self:hideIcon(); self:dropAllAccessories()
+end
+
+-- Canon: la modalita' "didattica" senza il cappello. Il professor act
+-- (reactMocking) e' la parodia; reactLecture e' la spiegazione vera, quando
+-- Minoru decide di essere utile invece di essere stronzo.
+function Rig:reactLecture()
+  self:setMood("determined")
+  self:setNamedPose("teaching", { duration = 0.4, ease = "easeOutCubic" })
+  self:setTremble(0)
+  self:hideIcon(); self:dropAllAccessories()
+end
+
+-- "Adesso basta scherzare": posa composta, mood determined, braccia
+-- incrociate. Non e' rabbia (reactAngry) ne' fumo represso (reactFuming):
+-- e' il momento in cui Minoru smette di fare il pagliaccio.
+function Rig:reactStern()
+  self:setMood("determined")
+  self:setNamedPose("crossedArms", { duration = 0.35, ease = "easeOutCubic" })
+  self:setTremble(0)
+  self:hideIcon()
+end
+
 -- "sfodera dei gadget per scimmiottare gli umani" — puts on the professor
 -- act (hat + pointer) to lecture/mock condescendingly, holograms implied.
 function Rig:reactMocking()
@@ -492,6 +558,20 @@ function Rig:update(dt)
     end
   end
 
+  -- idle blink: azzera occasionalmente l'alpha del visore per un istante.
+  -- Non e' un ammiccamento vero (non abbiamo palpebre), e' il pattern che
+  -- rende un oscilloscopio "vivo" quando e' a riposo.
+  if self.blinkPhase > 0 then
+    self.blinkPhase = math.max(0, self.blinkPhase - dt)
+  elseif self.mood == "standard" and not self.talking and not self.processing
+         and self.poseT >= 1 then
+    self.blinkTimer = self.blinkTimer - dt
+    if self.blinkTimer <= 0 then
+      self.blinkTimer = 3 + rnd() * 3
+      self.blinkPhase = 0.14
+    end
+  end
+
   if self.activeIcon then
     self.iconTimeLeft = self.iconTimeLeft - dt
     if self.iconTimeLeft <= 0 then self.activeIcon = nil end
@@ -556,7 +636,11 @@ end
 function Rig:_drawAt(x, y, scale, full, noBob)
   love.graphics.push()
   love.graphics.translate(x, y)
-  love.graphics.scale(scale, scale)
+  -- breathing: pulse di scala molto sottile, 0.8% (canon: il casco e'
+  -- una sfera; un respiro umano e' ~1% di variazione sul torace, che
+  -- su una sfera si traduce in ~0.8% di raggio).
+  local breath = 1 + math.sin(self.idleT * 0.7) * 0.008
+  love.graphics.scale(scale * breath, scale * breath)
   if not noBob then
     love.graphics.translate(0, math.sin(self.idleT * IDLE_FREQ) * IDLE_AMP)
   end
@@ -574,6 +658,11 @@ function Rig:_drawAt(x, y, scale, full, noBob)
     local currentAlpha = 1
     if self.speechlessFlicker and self.mood == "speechless" and self.blend >= 1 then
       currentAlpha = 0.35 + 0.5 * math.abs(math.sin(self.idleT * 9))
+    end
+    if self.blinkPhase > 0 then
+      -- 0.14s di "chiusura": alpha che crolla e risale
+      local k = self.blinkPhase / 0.14
+      currentAlpha = currentAlpha * (0.06 + 0.94 * (1 - k))
     end
     Visor.draw(h.visor_center[1], h.visor_center[2], h.visor_radius * 0.90, {
       mood = self.mood, processing = self.processing,
@@ -605,16 +694,23 @@ function Rig:_drawAt(x, y, scale, full, noBob)
       shakeR = math.sin(self.idleT * 45 + 1.7) * self.trembleAmp
     end
     local gestureL, gestureR = 0, 0
+    local elbowGestureL, elbowGestureR = 0, 0
     if self.talking then
       local amp = 0.18 * self.talkIntensity
       gestureL = math.sin(self.talkPhase * 0.9) * amp
       gestureR = math.sin(self.talkPhase * 0.9 + math.pi * 0.6) * amp
+      -- secondary motion: il gomito segue la spalla con un piccolo ritardo
+      -- di fase (principio classico di animazione: le estremita' inseguono
+      -- il corpo, non si muovono insieme).
+      local amp2 = 0.13 * self.talkIntensity
+      elbowGestureL = math.sin(self.talkPhase * 0.9 - 0.45) * amp2
+      elbowGestureR = math.sin(self.talkPhase * 0.9 + math.pi * 0.6 - 0.45) * amp2
     end
 
     local gL = { p = math.rad(55) * self.pose.gripL, m = math.rad(70) * self.pose.gripL, d = math.rad(55) * self.pose.gripL }
     local gR = { p = math.rad(55) * self.pose.gripR, m = math.rad(70) * self.pose.gripR, d = math.rad(55) * self.pose.gripR }
-    drawArm(self, h.shoulder_l, self.pose.shoulderL + shakeL + gestureL, self.pose.elbowL + shakeL, gL, false, self.accessories.handL)
-    drawArm(self, h.shoulder_r, self.pose.shoulderR + shakeR + gestureR, self.pose.elbowR + shakeR, gR, true, self.accessories.handR)
+    drawArm(self, h.shoulder_l, self.pose.shoulderL + shakeL + gestureL, self.pose.elbowL + shakeL + elbowGestureL, gL, false, self.accessories.handL)
+    drawArm(self, h.shoulder_r, self.pose.shoulderR + shakeR + gestureR, self.pose.elbowR + shakeR + elbowGestureR, gR, true, self.accessories.handR)
   end
 
   love.graphics.pop()

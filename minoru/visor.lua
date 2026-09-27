@@ -64,6 +64,11 @@ local COLOR = {
   determined  = { 0x8F/255, 0xE8/255, 0xFF/255 },
   speechless  = { 0x9A/255, 0x9E/255, 0xA2/255 },
   glitch      = { 0xA9/255, 0x4F/255, 0xE8/255 },
+  -- Canon (dossier "Codice Colore della Visiera"):
+  --   Blu = Apprensione. Rara, Minoru non ammette di preoccuparsi.
+  apprehensive = { 0x4A/255, 0x7A/255, 0xB8/255 },
+  --   Viola = [Sconosciuto] / Rintrompo puro. La realtà si sta rompendo.
+  paradox      = { 0xC4/255, 0x3F/255, 0xFF/255 },
 }
 Visor.COLOR = COLOR
 
@@ -130,6 +135,23 @@ local function computeShapeRaw(mood, t, opts, n, xs)
     elseif mood == "glitch" then
       y = 0.22 * math.sin(x * 9 + t * 4) + 0.06 * math.sin(x * 23 + t * 9 + 1.0)
       w = 0.07
+    elseif mood == "apprehensive" then
+      -- Canon: "la linea si abbassa e diventa sottile, quasi un sussurro
+      -- luminoso". Piu' sottile di sad, piu' corta in estensione.
+      y = 0.28 + 0.02 * math.sin(t * 0.8)
+      w = 0.035 * falloff(x, 0.45)
+    elseif mood == "paradox" then
+      -- Canon: paradosso / Rintrompo puro. La forma flickera in modo
+      -- quantizzato (12 scatti/secondo) e produce spike vicino al centro.
+      local tick = math.floor(t * 12)
+      local jit  = math.sin(x * 11 + tick * 2.3)
+      local spk  = math.sin(x * 47 + tick * 5.7)
+      if math.abs(x) < 0.15 then
+        y = spk * 0.20
+      else
+        y = jit * 0.08 + spk * 0.05
+      end
+      w = 0.06 * (0.6 + 0.4 * math.sin(t * 25 + x * 8))
     else
       y, w = 0, 0.08
     end

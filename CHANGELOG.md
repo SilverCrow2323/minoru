@@ -1,3 +1,50 @@
+## v1.2.0 — canonical moods, animation polish, i18n policy (2026-09-27)
+Aligns the library with the I.R. Minoru⁶ dossier.
+
+### Canonical moods (visor)
+- Added `apprehensive` (canon: blue, rare, "Minoru non ammette di
+  preoccuparsi"): line drops low and goes thin, slow breathing.
+- Added `paradox` (canon: violet, "il colore del paradosso o del
+  Rintrompo puro"): time-quantized flicker at 12 Hz, center spikes.
+
+### New reactions
+- `reactApprehensive()` — subtle, almost invisible, no icon.
+- `reactParadox()` — glitch-adjacent but distinct: clenched grip, question
+  mark, violet line.
+- `reactComrade()` — the honest-friend mode from "Altruismo Selettivo".
+  No sarcasm, no icon, no theatrics. Mood stays standard on purpose: his
+  sincerity isn't a special state, it's what's underneath the mask.
+- `reactLecture()` — didactic mode, teaching pose *without* the professor
+  hat (reactMocking is the parody; this is the real explanation).
+- `reactStern()` — "adesso basta scherzare". Crossed arms, determined
+  mood, no tremble. Not anger, not fuming.
+
+### Animation polish (rig)
+- **Breathing**: subtle whole-rig scale pulse, ±0.8%, 0.7 Hz. A robot
+  with a spherical casing that never "breathes" reads as dead.
+- **Idle blink**: every 3–6s while genuinely at rest (standard mood,
+  settled pose, not talking, not processing), the visor alpha briefly
+  drops to 6% for 0.14s. Not an eye-blink (no eyelids) — the idle pulse
+  of a live oscilloscope.
+- **Gesture secondary motion**: during talking, elbows now lag the
+  shoulders by a small phase offset (~0.45 rad). Classic animation
+  principle (extremities follow the body, they don't move in lockstep).
+
+### Language policy
+- Added `docs/I18N.md`: code/comments/docs in English (library is
+  embedded by third parties); demo dialogue stays Italian (Minoru's
+  canonical voice, not a localization oversight).
+
+### Demo
+- New keybindings: `Q` apprehension, `W` paradox, `J` comrade,
+  `K` lecture, `L` stern — each with a canonical-voice line.
+
+### Not in this release (deferred)
+- `v1.3.0`: procedural accessories (Napoleon hat, HONHONHON emote,
+  role-play gear from the dossier).
+- `v1.4.0`: real *Units* (Desk Lamp, Wrist Node, Hologram, Mecha) — a
+  rendering-mode refactor, needs art + a mode system.
+
 ## v1.1.0-dev — Fase 3: performance groundwork (2026-09-26)
 Performance profiling on real hardware is still pending — these are the
 tools and safe optimizations, not the measurements. The hypotheses below

@@ -31,7 +31,7 @@ local json = require("minoru.json")
 
 local Minoru = {}
 
-Minoru.VERSION = "1.1.0-dev"
+Minoru.VERSION = "1.2.0-dev"
 
 function Minoru.new(opts)
   opts = opts or {}

@@ -45,7 +45,8 @@ function love.load()
   rigY = (love.graphics.getHeight() - 1024 * rigScale) / 2
 
   mo:say("Sistemi avviati. Frecce=muoviti  SPAZIO=parla  " ..
-    "S/H/U/C/E/F/X/T/Z/D/A/V=reazioni  M=professore  G=sync")
+    "S/H/U/C/E/F/X/T/Z/D/A/V/M=reazioni  Q=apprensione  W=paradosso  " ..
+    "J=comrade  K=lezione  L=serio  F1=profiler  F2=qualita'  G=sync")
 end
 
 function love.update(dt)
@@ -118,6 +119,14 @@ local REACTION_KEYS = {
   a = { "reactAngry",       "ORA BASTA!" },
   v = { "reactGlitch",      "ERR—ORE— sist#ma no%n rispo--nde." },
   m = { "reactMocking",     "Ah, certo. Lascia che te lo spieghi io, con calma, per la millesima volta." },
+
+  -- v1.2.0 — moods canonici dal dossier I.R.
+  q = { "reactApprehensive", "Ehm... non e' che mi preoccupo, eh. Solo... cautela tattica. Non guardarmi cosi." },
+  w = { "reactParadox",      "ERR0RE DI REALTÀ. IL RINTROMPO SI STA— [rumore di interferenza] —NON DOVREI AVERLO VISTO." },
+  -- "Altruismo Selettivo": la maschera cade, per una volta.
+  j = { "reactComrade",      "...Sono qui, Pips. Non dico altro." },
+  k = { "reactLecture",      "Vediamo se riesco a spiegartelo senza che tu ti perda al secondo concetto. Spoiler: non ci riuscirai." },
+  l = { "reactStern",        "Adesso basta scherzare." },
 }
 
 function love.keypressed(key)
