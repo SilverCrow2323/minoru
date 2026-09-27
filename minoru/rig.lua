@@ -17,6 +17,7 @@
 local json = require("minoru.json")
 local Visor = require("minoru.visor")
 local Quality = require("minoru.quality")
+local Props = require("minoru.props")
 
 local Rig = {}
 Rig.__index = Rig
@@ -303,11 +304,25 @@ end
 
 function Rig:hideIcon() self.activeIcon = nil end
 
--- slot: "head" | "handL" | "handR". name: an ACCESSORY_FILES key, or nil to unequip.
+-- slot: "head" | "handL" | "handR".
+-- name: one of
+--   * a string key in ACCESSORY_FILES -> PNG-based accessory
+--   * a table { prop = "napoleon" } -> procedural (minoru/props.lua)
+--   * nil -> unequip
 function Rig:equipAccessory(slot, name)
-  assert(self.accessories[slot] ~= nil or slot == "head" or slot == "handL" or slot == "handR",
+  assert(slot == "head" or slot == "handL" or slot == "handR",
     "rig: unknown accessory slot '" .. tostring(slot) .. "'")
-  if name then assert(self.accessoryImages[name], "rig: unknown accessory '" .. tostring(name) .. "'") end
+  if name == nil then
+    self.accessories[slot] = nil
+    return
+  end
+  if type(name) == "table" and name.prop then
+    assert(Props.exists(name.prop),
+      "rig: unknown procedural prop '" .. tostring(name.prop) .. "'")
+    self.accessories[slot] = { prop = name.prop }
+    return
+  end
+  assert(self.accessoryImages[name], "rig: unknown accessory '" .. tostring(name) .. "'")
   self.accessories[slot] = name
 end
 
@@ -466,6 +481,31 @@ function Rig:reactStern()
   self:hideIcon()
 end
 
+-- Canon (dossier, "NAPOLEON UNIT / Playful, grandose comedic unit"): the
+-- full bit -- bicorne, arms crossed, chin up, dead serious about it.
+function Rig:reactNapoleon()
+  self:setMood("determined")
+  self:setNamedPose("crossedArms", { duration = 0.30, ease = "easeOutBack" })
+  self:setTremble(0)
+  self:equipAccessory("head", { prop = "napoleon" })
+  self:equipAccessory("handL", nil)
+  self:equipAccessory("handR", nil)
+  self:showIcon("sparkle", 1.2)
+end
+
+-- Canon (dossier, "HONHONHON" under ROLEPLAY GEAR): the French-chef bit.
+-- Professor hat + baguette in the right hand, teaching pose, sarcastic mood.
+-- Distinct from reactMocking (pointer stick, hat, no baguette).
+function Rig:reactHonHonHon()
+  self:setMood("sarcastic")
+  self:setNamedPose("teaching", { duration = 0.30, ease = "easeOutBack" })
+  self:setTremble(0)
+  self:equipAccessory("head", "prof_hat")
+  self:equipAccessory("handR", { prop = "baguette" })
+  self:equipAccessory("handL", nil)
+  self:showIcon("question_mark", 1.4)
+end
+
 -- "sfodera dei gadget per scimmiottare gli umani" — puts on the professor
 -- act (hat + pointer) to lecture/mock condescendingly, holograms implied.
 function Rig:reactMocking()
@@ -619,11 +659,22 @@ local function drawArm(self, shoulderAttach, shoulderAngle, elbowAngle, grip, fl
   end
 
   if accessoryName then
-    local accImg = self.accessoryImages[accessoryName]
-    local accAnc = self.anchors[accessoryName]
-    if accImg and accAnc then
-      local off = accAnc.grip_offset_from_wrist or { 0, 0 }
-      love.graphics.draw(accImg, off[1], off[2], 0, 1, 1, accAnc.pivot_grip[1], accAnc.pivot_grip[2])
+    if type(accessoryName) == "table" and accessoryName.prop then
+      -- procedural prop, drawn centred at the palm/grip origin.
+      -- prop draws around (0,0); the transform is already at the grip point.
+      love.graphics.push()
+      love.graphics.translate(0, 38)  -- same offset as the PNG pointer grip
+      local fn = Props[accessoryName.prop]
+      if fn then fn() end
+      love.graphics.pop()
+      love.graphics.setColor(1, 1, 1, 1)
+    else
+      local accImg = self.accessoryImages[accessoryName]
+      local accAnc = self.anchors[accessoryName]
+      if accImg and accAnc then
+        local off = accAnc.grip_offset_from_wrist or { 0, 0 }
+        love.graphics.draw(accImg, off[1], off[2], 0, 1, 1, accAnc.pivot_grip[1], accAnc.pivot_grip[2])
+      end
     end
   end
 
@@ -680,11 +731,23 @@ function Rig:_drawAt(x, y, scale, full, noBob)
     end
 
     if self.accessories.head then
-      local accImg = self.accessoryImages[self.accessories.head]
-      local accAnc = self.anchors[self.accessories.head]
-      if accImg and accAnc then
-        love.graphics.draw(accImg, h.head_top[1], h.head_top[2], 0, 1, 1,
-          accAnc.pivot_attach[1], accAnc.pivot_attach[2])
+      local acc = self.accessories.head
+      if type(acc) == "table" and acc.prop then
+        -- procedural head prop: anchored at the crown of the helmet.
+        -- head_top is (512, 180) in the 1024x1024 canvas.
+        love.graphics.push()
+        love.graphics.translate(h.head_top[1], h.head_top[2] - 20)
+        local fn = Props[acc.prop]
+        if fn then fn() end
+        love.graphics.pop()
+        love.graphics.setColor(1, 1, 1, 1)
+      else
+        local accImg = self.accessoryImages[acc]
+        local accAnc = self.anchors[acc]
+        if accImg and accAnc then
+          love.graphics.draw(accImg, h.head_top[1], h.head_top[2], 0, 1, 1,
+            accAnc.pivot_attach[1], accAnc.pivot_attach[2])
+        end
       end
     end
 

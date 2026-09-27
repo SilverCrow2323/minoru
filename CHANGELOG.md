@@ -1,3 +1,45 @@
+## v1.3.0 — roleplay gear (procedural accessories) (2026-09-27)
+Napoleon unit, HONHONHON, and the beginning of a procedural prop system
+for the I.R. dossier's "ACCESSORI // ROLEPLAY GEAR" section.
+
+### Procedural accessory system
+- New module `minoru/props.lua`: render functions for roleplay props
+  drawn with primitives (`polygon`/`rectangle`/`circle`/`line`), not PNGs.
+  Sized for the rig's 1024x1024 anchor space.
+- `Rig:equipAccessory(slot, name)` now accepts, in addition to PNG string
+  keys, a table `{ prop = "name" }` for a procedural prop. Backwards
+  compatible: existing calls with string keys behave exactly as before.
+- Head and hand accessory draw paths handle both PNG and procedural.
+
+### Props included
+- `napoleon` — bicorne hat, gold trim, cockade. (Dossier: NAPOLEON UNIT,
+  playful/grandose comedic unit.)
+- `crown`   — five-point crown with gems, for the "grandose" bits.
+- `antenna` — bent whip antenna with a glowing tip, subtle idle gear.
+- `baguette` — used by reactHonHonHon() (dossier: HONHONHON).
+
+### New reactions
+- `reactNapoleon()` — bicorne + arms crossed + determined mood + sparkle.
+- `reactHonHonHon()` — professor hat + baguette in the right hand +
+  teaching pose + sarcastic mood + question mark icon.
+  Distinct from reactMocking (pointer stick, no baguette).
+
+### Tests
+- `tests/test_props.lua`: every prop in `Props.names` has a matching
+  function, every function runs without error under stubbed graphics,
+  and no NaN/inf reaches any draw call. `Props.exists` edge cases covered.
+
+### Demo
+- New keybindings: `N` Napoleon, `O` HONHONHON, each with a
+  canonical-voice Italian line.
+
+### Notes
+- The procedural props are deliberately primitive. Real PNG art from the
+  dossier will replace them one by one; the rig API does not change, you
+  just swap `{ prop = "napoleon" }` for a PNG key in ACCESSORY_FILES.
+- Deferred to v1.4.0: real *Units* (Desk Lamp, Wrist Node, Hologram,
+  Mecha) — a rendering-mode refactor, not just new props.
+
 ## v1.2.0 — canonical moods, animation polish, i18n policy (2026-09-27)
 Aligns the library with the I.R. Minoru⁶ dossier.
 

@@ -46,7 +46,8 @@ function love.load()
 
   mo:say("Sistemi avviati. Frecce=muoviti  SPAZIO=parla  " ..
     "S/H/U/C/E/F/X/T/Z/D/A/V/M=reazioni  Q=apprensione  W=paradosso  " ..
-    "J=comrade  K=lezione  L=serio  F1=profiler  F2=qualita'  G=sync")
+    "J=comrade  K=lezione  L=serio  N=Napoleon  O=honhonhon  " ..
+    "F1=profiler  F2=qualita'  G=sync")
 end
 
 function love.update(dt)
@@ -127,6 +128,10 @@ local REACTION_KEYS = {
   j = { "reactComrade",      "...Sono qui, Pips. Non dico altro." },
   k = { "reactLecture",      "Vediamo se riesco a spiegartelo senza che tu ti perda al secondo concetto. Spoiler: non ci riuscirai." },
   l = { "reactStern",        "Adesso basta scherzare." },
+
+  -- v1.3.0 — roleplay gear (procedural props dal dossier I.R.)
+  n = { "reactNapoleon",     "Nessuno può fermare l'imperatore del Rintrompo. Nessuno." },
+  o = { "reactHonHonHon",    "HON HON HON. Ecco, guarda, sto ridendo. Contento?" },
 }
 
 function love.keypressed(key)
